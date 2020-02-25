@@ -16,11 +16,16 @@
 #include "TCPServer.h"
 #include "ALMgr.h"
 
+#include <sstream>
+#include <iterator>
+
 TCPServer::TCPServer(unsigned int verbosity)
                         :_aes_key(CryptoPP::AES::DEFAULT_KEYLENGTH), 
                          _server_log("server.log", 0),
                          _verbosity(verbosity)
 {
+   //seeds random number generator
+   srand(time(NULL));   
 }
 
 
@@ -144,8 +149,7 @@ TCPConn *TCPServer::handleSocket() {
       msg += "'.";
       _server_log.writeLog(msg);
 
-      // Send an authentication string in cleartext
-            
+      
 
       return new_conn;
    }

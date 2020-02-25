@@ -23,6 +23,8 @@ AntennaSim::AntennaSim(DronePlotDB &dpdb, const char *source_filename, float tim
    if (_source_db.loadBinaryFile(source_filename) <= 0)
       throw std::runtime_error("Source database could not be opened or was empty.");
 
+   //testing
+   this->filenameH = source_filename;
    if (_verbosity >= 2)
       std::cout << "SIM: Source database " << source_filename << " successfully loaded.\n";
    if (_verbosity >= 1)
@@ -40,6 +42,7 @@ AntennaSim::~AntennaSim() {
  *****************************************************************************************/
 
 void AntennaSim::loadSourceDB(const char *filename) {
+   
 
    // Load our drone plots to feed to the accessible database
    int results = _source_db.loadBinaryFile(filename);
@@ -69,6 +72,23 @@ void AntennaSim::simulate() {
    // Set up a random offset between 1 and 3 seconds from true
    srand(time(NULL));
    _time_offset = (rand() % 6) - 3;
+
+   std::cout << "filename: " << this->filenameH << std::endl;
+
+   //for Testing
+   if (this->filenameH == "./data/SingleDroneN1.bin"){
+      std::cout << "manual offset: 0" << std::endl;
+      _time_offset = 0;
+   }
+   else if (this->filenameH == "./data/SingleDroneN2.bin"){
+      std::cout << "manual offset: 0" << std::endl;
+      _time_offset = -1;
+   }
+   else if (this->filenameH == "./data/SingleDroneN3.bin"){
+      std::cout << "manual offset: 0" << std::endl;
+      _time_offset = 1;
+   }
+
    if (_verbosity >= 2) 
       std::cout << "SIM: Simulator time offset: " << _time_offset << " secs\n";
 

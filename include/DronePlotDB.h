@@ -47,6 +47,8 @@ public:
    time_t timestamp;
    float latitude;
    float longitude;
+
+   bool adjusted = false;
    
 private:
    unsigned short _flags;

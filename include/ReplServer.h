@@ -38,8 +38,43 @@ private:
    void addReplDronePlots(std::vector<uint8_t> &data);
    void addSingleDronePlot(std::vector<uint8_t> &data);
 
+   void dbTimeSync();
+
+   std::list<DronePlot>::iterator getDBIterator(unsigned int index);
+
+   void deleteDBduplicates(bool StartTimeFlag);
+   void deleteDBduplicatesFinal();
+
+   int checkStartTimeRef(int referenceTime);
+
+   int cycles = 0;
+
    unsigned int queueNewPlots();
 
+   unsigned int masterClockNode = 0;
+   int masterOffset = 0;
+
+   bool startTimeWasSet = false;
+   int setStartTime = 0;
+   int storedRefTime = 0;
+
+   bool tempStartTimeSet = false;
+
+   void setStartTimeRef(int referenceTime);
+
+   int masterOffset12 = 0;
+   int masterOffset13 = 0;
+   int masterOffset23 = 0;
+
+   int findOffsetCase(unsigned int Node1, unsigned int Node2);
+   
+   void adjustCaseOffset(int inputCase, int inputOffset);
+
+   int returnCaseOffset(int inputCase);
+
+   int debugFlag1 = 0;
+   int debugFlag2 = 0;
+   int debugFlag3 = 0;
 
    QueueMgr _queue;    
 

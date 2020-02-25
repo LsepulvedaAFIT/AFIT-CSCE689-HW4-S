@@ -45,6 +45,9 @@ private:
    int _verbosity;
  
    time_t _start_time;
+
+   //testing 
+   std::string filenameH;
 };
 
 
