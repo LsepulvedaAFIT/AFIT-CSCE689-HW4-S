@@ -111,7 +111,7 @@ void ReplServer::replicate() {
          addReplDronePlots(data);         
       }
       dbTimeSync();       
-      //deleteDBduplicates(this->startTimeWasSet);
+      deleteDBduplicates(this->startTimeWasSet);
 
       usleep(1000);
    }
