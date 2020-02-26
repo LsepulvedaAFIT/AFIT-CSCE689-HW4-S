@@ -48,7 +48,9 @@ public:
    float latitude;
    float longitude;
 
+   //tracker variables to used to searching database
    bool adjusted = false;
+   bool checked = false;
    
 private:
    unsigned short _flags;

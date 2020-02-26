@@ -16,7 +16,7 @@ public:
    ~TCPConn();
 
    // The current status of the connection
-   enum statustype { s_none, s_connecting, s_connected, s_svrSendAuthString, s_clientAuthResp, s_svrAuthResp1, s_svrAuthResp2, s_cFinalCheck, s_datatx, s_datarx, s_waitack, s_hasdata };
+   enum statustype { s_none, s_connecting, s_connected, s_svrSendAuthString, s_clientAuthResp, s_svrWaitForResp, s_svrSendAuthResp, s_cFinalCheck, s_datatx, s_datarx, s_waitack, s_hasdata };
 
    statustype getStatus() { return _status; };
 
@@ -76,10 +76,12 @@ protected:
    void waitForData();
    void awaitAck();
 
+   //student generated functions to execution authentication process
+   //depicted in figure 9.6 in the textbook
    void svrSendAuth();
    void clientAuthProcess();
-   void svrAuthProces1();
-   void svrAuthProces2();
+   void svrAuthRespProcess();
+   void svrAuthSendProcess();
    void sendAuthenticationString();
    void waitForAuthString();
    void sendEncryptAuthString();
@@ -123,7 +125,9 @@ private:
    // Store outgoing data to be sent over the network
    std::vector<uint8_t> _outputbuf;
 
-   std::vector<uint8_t> authString;
+   //Stores generated authentication string
+   std::vector<uint8_t> authString; 
+   //Stores recieved authentication string
    std::vector<uint8_t> recAuthString;
 
    CryptoPP::SecByteBlock &_aes_key; // Read from a file, our shared key

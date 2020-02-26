@@ -38,7 +38,9 @@ private:
    void addReplDronePlots(std::vector<uint8_t> &data);
    void addSingleDronePlot(std::vector<uint8_t> &data);
 
+   //functions in attempt to sync times
    void dbTimeSync();
+   void dbTimeSync2();
 
    std::list<DronePlot>::iterator getDBIterator(unsigned int index);
 
@@ -47,30 +49,43 @@ private:
 
    int checkStartTimeRef(int referenceTime);
 
-   int cycles = 0;
-
    unsigned int queueNewPlots();
 
-   unsigned int masterClockNode = 0;
-   int masterOffset = 0;
+   bool startTimeCalcErrorCheck(int nodeId);
 
-   bool startTimeWasSet = false;
-   int setStartTime = 0;
-   int storedRefTime = 0;
+   void syncDroneTimeSteps(int nodeId);
+   bool checkIfAlreadyFound(std::vector<int> inputVector, int value);
 
-   bool tempStartTimeSet = false;
-
-   void setStartTimeRef(int referenceTime);
-
-   int masterOffset12 = 0;
-   int masterOffset13 = 0;
-   int masterOffset23 = 0;
+   void setStartTimeErrorCheckFlag(int nodeId);
 
    int findOffsetCase(unsigned int Node1, unsigned int Node2);
    
    void adjustCaseOffset(int inputCase, int inputOffset);
 
    int returnCaseOffset(int inputCase);
+
+   void setStartTimeRef(int referenceTime);
+
+   int cycles = 0;
+
+   unsigned int masterClockNode = 0;
+   int masterOffset = 0;
+   int masterStartTime = 0;
+
+   bool startTimeWasSet = false;
+   int setStartTime = 0;
+   int storedRefTime = 0;
+
+   bool node1StartTimeFlag = true;
+   bool node2StartTimeFlag = true;
+   bool node3StartTimeFlag = true;
+
+   bool tempStartTimeSet = false;
+
+
+   int masterOffset12 = 0;
+   int masterOffset13 = 0;
+   int masterOffset23 = 0;
 
    int debugFlag1 = 0;
    int debugFlag2 = 0;

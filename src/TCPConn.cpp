@@ -200,16 +200,17 @@ void TCPConn::handleConnection() {
             clientAuthProcess();
             break;
 
-         //Server: 
-         case s_svrAuthResp1:
-            //std::cout << "In s_svrAuthResp1 state"<<std::endl;
-            svrAuthProces1();
+         //Server: Waits for client to send encrypted string
+         // and clear text authentication string 
+         case s_svrWaitForResp:
+            //std::cout << "In s_svrWaitForResp state"<<std::endl;
+            svrAuthRespProcess();
             break;
 
-         //Server:
-         case s_svrAuthResp2:
-            //std::cout << "In s_svrAuthResp2 state"<<std::endl;
-            svrAuthProces2();
+         //Server: Returns encrypted Authentication string
+         case s_svrSendAuthResp:
+            //std::cout << "In s_svrSendAuthResp state"<<std::endl;
+            svrAuthSendProcess();
             break;
 
          //Client: final check of encryption reply from server
@@ -660,132 +661,174 @@ const char *TCPConn::getIPAddrStr(std::string &buf) {
 }
 
 /**********************************************************************************************
- * Add comments
+ * sendAuthenticationString - send an clear text authentication string in support of encryption 
+ * process shown in figure 9.6 of the text book
+ * 
  **********************************************************************************************/
 
 void TCPConn::sendAuthenticationString() {
+   //testing
    //std::cout << "In sendAuthenticationString()" << std::endl;
    
    // If data on the socket, should be our Auth string from our host server
    std::vector<uint8_t> buf;
-   std::vector<uint8_t> buf2;
-
-   //Send an authentication string (Random Number) in cleartext
+   std::vector<uint8_t> buf2;  
       
-   //Generating number and storing it in buf   
-   //std::vector<uint8_t> randomAuthString; //Testing
+   //Generating number and stores it for later comparison
    authString.clear();
-   
 
+   //creates a random number to send as an authentication string
    for (int i = 0; i < 12; i++){
       int randomNum = rand() % 30;
       buf.push_back(randomNum);
+      //stores it for later comparison
       authString.push_back(randomNum);
    }
    
+   //Testing
+   /*
    std::stringstream result;
    std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(result, " "));
-   std::cout << "Sending Auth: "<< result.str() << std::endl;
+   std::cout << "Sending Auth: "<< result.str() << std::endl;*/
    
    //sends clear text authentication string
-   
    wrapCmd(buf, c_auth, c_endauth);
-   sendData(buf);
-   std::cout << "Size auth : "<< buf.size() << std::endl;
-
-   //buf2.assign(_svr_id.begin(), _svr_id.end());
-   //wrapCmd(buf2, c_sid, c_endsid);
-   //sendData(buf2);
-
-   //_status = s_datarx;
+   bool sendResult = sendData(buf);
+   if (!sendResult){
+      std::cout << "Error sending message" << std::endl;
+      std::cout << "Disconnecting socket to restart authentication process" << std::endl;
+      std::stringstream msg;
+      msg << "Sending auth string failed. disconneted to restart authentication process";
+      _server_log.writeLog(msg.str().c_str());
+      disconnect();
+   }
+   //Tesing
+   //std::cout << "Size auth : "<< buf.size() << std::endl;
 }
+
+/*********************************************************************************
+ * waitForAuthString - wait to recieve authentication string from server/client
+ * 
+ *    disconnects if data recieved was in the inproper format
+ *    writes error to log file
+ * ******************************************************************************/
 
 void TCPConn::waitForAuthString(){
    //std::cout << "In waitForAuthString()AndResp" << std::endl;
 
-   //if (_connfd.hasData()) {
-      std::vector<uint8_t> buf;
+   //buffer to store recieved data
+   std::vector<uint8_t> buf;
 
-      if (!getData(buf))
-         return;
+   //Loops until it recieves data 
+   if (!getData(buf))
+      return;
 
-      if (!getCmdData(buf, c_auth, c_endauth)) {
-         std::cout << "Auth string from connecting client invalid format. Cannot authenticate" << std::endl;
-         std::cout << "size of buff: " << buf.size() << std::endl;
-         std::stringstream resulttest;
-         std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(resulttest, " "));
-         std::cout << "Recieved buff: "<< resulttest.str() << std::endl;
+   if (!getCmdData(buf, c_auth, c_endauth)) {
+      std::cout << "Auth string from connecting client invalid format. Cannot authenticate" << std::endl;
+      //Testing
+      /*
+      std::cout << "size of buff: " << buf.size() << std::endl;
+      std::stringstream resulttest;
+      std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(resulttest, " "));
+      std::cout << "Recieved buff: "<< resulttest.str() << std::endl;*/
          
-         std::stringstream msg;
-         msg << "Auth string from connecting client invalid format. Cannot authenticate.";
-         _server_log.writeLog(msg.str().c_str());
-         disconnect();
-         return;
-      }
+      //logs message in server
+      std::stringstream msg;
+      msg << "Auth string from connecting client invalid format. Cannot authenticate.";
+      _server_log.writeLog(msg.str().c_str());
+      disconnect();
+      return;
+   }
 
-      std::stringstream result;
-      std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(result, " "));
-      std::cout << "Recieved Auth: "<< result.str() << std::endl;
+   //stores recieved string in container for later processing
+   this->recAuthString = buf;
 
-      this->recAuthString = buf;
+   //testing
+   /*
+   std::stringstream result;
+   std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(result, " "));
+   std::cout << "Recieved Auth: "<< result.str() << std::endl;*/
 
-      std::stringstream result5;
-      std::copy(this->recAuthString.begin(), this->recAuthString.end(), std::ostream_iterator<int>(result5, " "));
-      std::cout << "Recieved Auth String: "<< result.str() << std::endl;
-
-      //wrapCmd(buf, c_auth, c_endauth);
-      //encryptData(buf);
-      //sendData(buf);
-
-      //std::cout << "Recieved Auth Sent Back "<< result.str() << std::endl;
-
-      //_status = s_datatx; 
-
-   //}
+   //Testing
+   /*
+   std::stringstream result5;
+   std::copy(this->recAuthString.begin(), this->recAuthString.end(), std::ostream_iterator<int>(result5, " "));
+   std::cout << "Recieved Auth String: "<< result.str() << std::endl;*/
 }
+
+/********************************************************************************
+ *  svrSendAuth - sends authentication string and transitions to new state to
+ * wait for encrypted authentication response
+ * 
+ * *****************************************************************************/
 
 void TCPConn::svrSendAuth(){
    sendAuthenticationString();
-   //_status = s_datarx;
-   _status = s_svrAuthResp1;
+   _status = s_svrWaitForResp;
 }
+
+/********************************************************************************
+ * clientAuthProcess  - waits to recieve clear text authenticaiton string from 
+ *    server and sends it encrypted.  Transitions to final check to wait for the
+ *    encryption authentication reply from the server
+ * (Note: Wrapping function to reuse internal function, minimize code replication)
+ * *****************************************************************************/
 
 void TCPConn::clientAuthProcess(){
    if (_connfd.hasData()) {
       waitForAuthString();
-      //sendAuthenticationString();
       sendAuthenticationRespAndString();
-      //_status = s_datatx; 
       _status = s_cFinalCheck;
    }
 }
 
-void TCPConn::svrAuthProces1(){
+/********************************************************************************
+ * svrAuthRespProcess - waits for the encrypted reply from the client and a clear
+ *    text authentication string.  Transitions to encrypt clear text authentication
+ *    string return it back to the client 
+ * (Note: Wrapping function to reuse internal function, minimize code replication)
+ * ***************************************************************************/
+
+void TCPConn::svrAuthRespProcess(){
    if (_connfd.hasData()) {
       waitForEncryptAuthReplyAndAuthString();
-      _status = s_svrAuthResp2;
+      _status = s_svrSendAuthResp;
    }
 }
-
-void TCPConn::svrAuthProces2(){
-   //sendAuthenticationRespAndString();
+/*******************************************************************************
+ * svrAuthSendProcess - encrypt clear text authentication string returns it 
+ *    back to the client for final check before interchanging encrypted data.
+ *    Transition to wait to recieve data from client
+ * (Note: Wrapping function to reuse internal function, minimize code replication)
+ * ***************************************************************************/
+void TCPConn::svrAuthSendProcess(){
    sendAuthenticationResp();
    _status = s_datarx;
 }
 
+
+/******************************************************************************
+ * waitForEncryptAuthReply - waits for encrypted response and checks if it 
+ *    matches the string that was sent. 
+ * 
+ *    Disconnects if strings do not match.
+ * 
+ * **************************************************************************/
 void TCPConn::waitForEncryptAuthReply(){
-   //std::cout << "in waitForEncryptAuthReply()" << std::endl;
+   //std::cout << "in waitForEncryptAuthReply()" << std::endl;//Testing
 
-   //if (_connfd.hasData()) {
+      //buffer to store incoming data
       std::vector<uint8_t> buf;
-      //std::cout << "in waitForEncryptAuthReply() (hasData)" << std::endl;
 
+      //loops until data is recieves
       if (!getData(buf))
          return;
 
+      //decrypts incoming data
       decryptData(buf);
-      std::cout << "Data decrypted" << std::endl;
+      //std::cout << "Data decrypted" << std::endl; //Testing
 
+      //checks if data came in the proper format
       if (!getCmdData(buf, c_auth, c_endauth)) {
          std::cout << "Error invalid format" << std::endl;
          std::stringstream msg;
@@ -795,36 +838,26 @@ void TCPConn::waitForEncryptAuthReply(){
          return;
       }
 
+      //check if replied string matches the string that was sent 
       if (buf == this->authString){
-         std::cout << "Authentication String matches" << std::endl;
+         std::cout << "TCP Connection message: authentication string matches" << std::endl;
       }
       else{
-         std::cout << "Authentication String DO NOT matche" << std::endl;
+         std::cout << "TCP Connection message: Recieved authentication string DO NOT match, Disconnecting" << std::endl;
+         std::stringstream msg;
+         msg << "Auth string from connecting client does not match. Cannot authenticate.";
+         _server_log.writeLog(msg.str().c_str());
+         disconnect();
+
+         /****TESTING*****
          std::stringstream result;
          std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(result, " "));
          std::cout << "Buf: "<< result.str() << std::endl;
 
          std::stringstream result2;
          std::copy(authString.begin(), authString.end(), std::ostream_iterator<int>(result, " "));
-         std::cout << "AuthString: "<< result2.str() << std::endl;
+         std::cout << "AuthString: "<< result2.str() << std::endl;*/
       }
-
-      //testing
-      //std::stringstream result;
-      //std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(result, " "));
-      //std::cout << "Sent for test: "<< result.str() << std::endl;
-      
-      //rapCmd(buf, c_auth, c_endauth);
-      //encryptData(buf);
-      //sendData(buf);
-
-      //std::stringstream resulttest;
-      //std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(resulttest, " "));
-      //std::cout << "Sent Encryp buff: "<< resulttest.str() << std::endl;
-      //std::vector<uint8_t> blank;
-      //sendData(blank);
-
-   //}
 }
 
 /**********************************************************************************
@@ -840,6 +873,15 @@ void TCPConn::finalAuthCheck(){
    }
 }
 
+/**********************************************************************************
+ * sendAuthenticationRespAndString - encrypts recieved authentication string and
+ *    sends it back to the server.  Creates and new random number to send as an 
+ *    authentication string for the server.
+ * 
+ *   Disconnects if it is unable to send data to restart the authentication 
+ *       process.
+ * ********************************************************************************/
+
 void TCPConn::sendAuthenticationRespAndString() {
    //std::cout << "In sendAuthenticationRespAndString()" << std::endl;
    
@@ -847,58 +889,72 @@ void TCPConn::sendAuthenticationRespAndString() {
    std::vector<uint8_t> buf;
    std::vector<uint8_t> buf2;
 
+   //recieves the data and encrypts it
    buf = this->recAuthString;
    encryptData(buf);
    wrapCmd(buf, c_auth, c_endauth);
-
-   //Send an authentication string (Random Number) in cleartext
       
-   //Generating number and storing it in buf   
-   //std::vector<uint8_t> randomAuthString; //Testing
+   //Containt that stores the generated string to compare at a later time   
    authString.clear();
-   
 
+   //Generating number and storing it in buf   
    for (int i = 0; i < 12; i++){
       int randomNum = rand() % 30;
       buf2.push_back(randomNum);
       authString.push_back(randomNum);
    }
    
+   //testing
+   /*
    std::stringstream result;
    std::copy(buf2.begin(), buf2.end(), std::ostream_iterator<int>(result, " "));
-   std::cout << "Sending Auth: "<< result.str() << std::endl;
+   std::cout << "Sending Auth: "<< result.str() << std::endl;*/
    
    //sends clear text authentication string
-   
    wrapCmd(buf2, c_auth, c_endauth);
    buf.insert( buf.end(), buf2.begin(), buf2.end() );
-   sendData(buf);
+   bool sendResult = sendData(buf);
+   if (!sendResult){
+      std::cout << "TCP Connnection message: Error sending message" << std::endl;
+      std::cout << "TCP Connnection message: Disconnecting socket to restart authentication process" << std::endl;
+      //writes error to log file
+      std::stringstream msg;
+      msg << "Sending auth string failed. disconneted to restart authentication process";
+      _server_log.writeLog(msg.str().c_str());
+      disconnect();
+   }
    std::cout << "Size auth : "<< buf.size() << std::endl;
 
    //buf2.assign(_svr_id.begin(), _svr_id.end());
    //wrapCmd(buf2, c_sid, c_endsid);
    //sendData(buf2);
-
-   //_status = s_datarx;
 }
 
-void TCPConn::waitForEncryptAuthReplyAndAuthString(){
-   //std::cout << "waitForEncryptAuthReplyAndAuthString()" << std::endl;
+/********************************************************************************
+ * waitForEncryptAuthReplyAndAuthString - wait for the encrypted authentication
+ *    string and clear text authentication string from the client
+ * 
+ *    Disconnect if incomming data is not properly formatted
+ * *****************************************************************************/
 
-   //if (_connfd.hasData()) {
+void TCPConn::waitForEncryptAuthReplyAndAuthString(){
+   //std::cout << "waitForEncryptAuthReplyAndAuthString()" << std::endl;//Testing
+
       std::vector<uint8_t> buf;
       std::vector<uint8_t> encrypAuthStr;
-      //std::cout << "waitForEncryptAuthReplyAndAuthString()(hasData)" << std::endl;
 
+      //loops until data is recieved
       if (!getData(buf))
          return;
 
-      //decryptData(buf);
-      //std::cout << "Data decrypted" << std::endl;
+
+      //transfers incoming into buffer to parse the encrypted message from the
+      //authentication string
       encrypAuthStr = buf;
 
+      //removes the encrypted authentication string
       if (!getCmdData(encrypAuthStr, c_auth, c_endauth)) {
-         std::cout << "Error invalid format" << std::endl;
+         std::cout << "TCP Connnection message: Error recieved data in invalid format" << std::endl;
          std::stringstream msg;
          msg << "Auth string from connecting client invalid format. Cannot authenticate.";
          _server_log.writeLog(msg.str().c_str());
@@ -906,33 +962,48 @@ void TCPConn::waitForEncryptAuthReplyAndAuthString(){
          return;
       }
 
+      //calculates the initial part of data that needs to be removed to get
+      //authentication string before data is altered
       int discardSize = encrypAuthStr.size() + 11;      
 
+      //decrypts data
       decryptData(encrypAuthStr);
 
+      //compares recieved string to the string that was sent
       if (encrypAuthStr == this->authString){
-         std::cout << "Authentication String matches" << std::endl;
+         std::cout << "TCP Connection message: authentication string matches" << std::endl;
       }
       else{
-         std::cout << "Authentication String DO NOT matche" << std::endl;
+         std::cout << "TCP Connection message: Recieved authentication string DO NOT match, Disconnecting" << std::endl;
+         std::stringstream msg;
+         msg << "Auth string from connecting client does not match. Cannot authenticate.";
+         _server_log.writeLog(msg.str().c_str());
+         disconnect();
+
+         //Testing
+         /*
          std::stringstream result;
          std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(result, " "));
          std::cout << "Buf: "<< result.str() << std::endl;
 
          std::stringstream result2;
          std::copy(authString.begin(), authString.end(), std::ostream_iterator<int>(result, " "));
-         std::cout << "AuthString: "<< result2.str() << std::endl;
+         std::cout << "AuthString: "<< result2.str() << std::endl;*/
       }
 
+      //discard the first part of the message to access clear text authentication string
       buf.erase(buf.begin(), buf.begin()+discardSize);
 
+
       if (!getCmdData(buf, c_auth, c_endauth)) {
-         std::cout << "Auth string from connecting client invalid format. Cannot authenticate" << std::endl;
+         std::cout << "TCP Connnection message: Auth string from connecting client invalid format. Cannot authenticate" << std::endl;
+         /*//Testing
          std::cout << "size of buff: " << buf.size() << std::endl;
          std::stringstream resulttest;
          std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(resulttest, " "));
-         std::cout << "Recieved buff: "<< resulttest.str() << std::endl;
+         std::cout << "Recieved buff: "<< resulttest.str() << std::endl;*/
          
+         //log error message
          std::stringstream msg;
          msg << "Auth string from connecting client invalid format. Cannot authenticate.";
          _server_log.writeLog(msg.str().c_str());
@@ -940,20 +1011,30 @@ void TCPConn::waitForEncryptAuthReplyAndAuthString(){
          return;
       }
 
+      //Testing
+      /*
       std::stringstream result;
       std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(result, " "));
-      std::cout << "Recieved Auth: "<< result.str() << std::endl;
+      std::cout << "Recieved Auth: "<< result.str() << std::endl;*/
 
+      //stores recieved clear text authentication string
       this->recAuthString = buf;
 
+      //Testing
+      /*
       std::stringstream result5;
       std::copy(this->recAuthString.begin(), this->recAuthString.end(), std::ostream_iterator<int>(result5, " "));
-      std::cout << "Recieved Auth String: "<< result.str() << std::endl;
+      std::cout << "Recieved Auth String: "<< result.str() << std::endl;*/
 
-      
-
-   //}
 }
+
+/*******************************************************************************************************
+ * sendAuthenticationResp - encrypts the clear text authentication string by the client and sends it
+ *    back to the client.
+ * 
+ *    Disconnects if it is unable to send data to restart the authentication 
+ *       process.
+ * ****************************************************************************************************/
 
 void TCPConn::sendAuthenticationResp(){
    //std::cout << "In sendAuthenticationResp()" << std::endl;
@@ -962,15 +1043,28 @@ void TCPConn::sendAuthenticationResp(){
    std::vector<uint8_t> buf;
    std::vector<uint8_t> buf2;
 
+   //load recieved authentication string into buffer
    buf = this->recAuthString;
 
+   //Testing
+   /*
    std::stringstream result;
    std::copy(buf.begin(), buf.end(), std::ostream_iterator<int>(result, " "));
-   std::cout << "Sending Auth resp: "<< result.str() << std::endl;
+   std::cout << "Sending Auth resp: "<< result.str() << std::endl;*/
+
 
    wrapCmd(buf, c_auth, c_endauth);
    encryptData(buf);
-   sendData(buf);
-   //wrapCmd(buf, c_auth, c_endauth);
+
+   bool sendResult = sendData(buf);
+   if (!sendResult){
+      std::cout << "TCP Connnection message: Error sending message" << std::endl;
+      std::cout << "TCP Connnection message: Disconnecting socket to restart authentication process" << std::endl;
+      //writes message to 
+      std::stringstream msg;
+      msg << "Sending encrypted authenticatio string failed. disconneted to restart authentication process";
+      _server_log.writeLog(msg.str().c_str());
+      disconnect();
+   }
 
 }

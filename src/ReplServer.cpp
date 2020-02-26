@@ -110,13 +110,13 @@ void ReplServer::replicate() {
          // Incoming replication--add it to this server's local database
          addReplDronePlots(data);         
       }
-      dbTimeSync();       
-      deleteDBduplicates(this->startTimeWasSet);
+      dbTimeSync2();       
+      //deleteDBduplicates(this->startTimeWasSet);
 
       usleep(1000);
    }
    dbTimeSync();
-   deleteDBduplicatesFinal();   
+   //deleteDBduplicatesFinal();   
 }
 
 /**********************************************************************************************
@@ -229,6 +229,171 @@ void ReplServer::addSingleDronePlot(std::vector<uint8_t> &data) {
                                                          tmp_plot.longitude);
 }
 
+void ReplServer::dbTimeSync2(){
+   _plotdb.sortByTime();
+
+   std::vector<int> foundTracking(static_cast<int>(_plotdb.size()), 0);
+
+   int overallReferenceTime = 0;
+
+   bool refTimeSet = false;
+   if (startTimeWasSet){
+      overallReferenceTime = this->masterStartTime;
+      refTimeSet = true;
+   }
+
+   for (unsigned int i = 0; i < _plotdb.size(); i++)
+   {
+      std::vector<std::list<DronePlot>::iterator> duplicatePts;
+      std::list<DronePlot>::iterator it = getDBIterator(i);
+
+
+      if (!it->isFlagSet(DBFLAG_NEW))
+      {      
+ 
+         if ( it->checked ){
+            continue;
+         }
+         else{
+            duplicatePts.push_back(it);
+            it->checked = true;
+         }
+         
+
+         for (unsigned int j = i + 1; j < _plotdb.size(); j++)
+         {
+            std::list<DronePlot>::iterator it2 = getDBIterator(j);
+            
+            if(!it->isFlagSet(DBFLAG_NEW))
+            {
+               if ((it->drone_id == it2->drone_id) && (it->node_id != it2->node_id))
+               {
+                  if (it->latitude == it2->latitude && it->longitude == it2->longitude)
+                  {
+                     int tDiff = abs(it->timestamp - it2->timestamp);
+                     if (tDiff < 11)
+                     {
+                        if (it2 != _plotdb.end()){
+                           duplicatePts.push_back(it2);
+                           it2->checked = true;
+                        }
+                        
+                     }
+                  }
+               }
+            }
+         }
+
+
+         int largestTime = 0;
+         unsigned int tempMasterClockNode = 0;
+         //finds largest timestamp for all duplicate pts
+         for (unsigned int k = 0; k < duplicatePts.size(); k++)
+         {
+            if ( largestTime < duplicatePts.at(k)->timestamp )
+            {
+               largestTime = duplicatePts.at(k)->timestamp;
+            }
+         }
+
+         //make sure smaller time nodes can never be the masterclock
+         for (unsigned int k = 0; k < duplicatePts.size(); k++)
+         {
+            if ( largestTime != duplicatePts.at(k)->timestamp )
+            {
+               setStartTimeErrorCheckFlag(duplicatePts.at(k)->node_id);  
+            }
+         }
+
+         //check/set MasterStartTime
+         for (unsigned int k = 0; k < duplicatePts.size(); k++)
+         {
+            bool validCheck = startTimeCalcErrorCheck(duplicatePts.at(k)->node_id);
+            if (validCheck){
+               int tempStartTime = checkStartTimeRef(duplicatePts.at(k)->timestamp);
+               if (this->masterStartTime < tempStartTime){
+                  this->masterStartTime = tempStartTime;
+                  this->masterClockNode = duplicatePts.at(k)->node_id;
+                  this->startTimeWasSet = true;
+               }
+            }
+         }
+
+         if (refTimeSet){
+            if (largestTime > (overallReferenceTime + 13)){
+               //overallReferenceTime  += 20;
+               //when svr3 (-3) & svr2 (+3) & svr1 (0)
+               overallReferenceTime  += 6;
+               //when svr3 (-2) && svr2 (2) & svr1 (0)
+               //overallReferenceTime  += ;
+
+            }
+            else if (largestTime != overallReferenceTime){
+               largestTime = overallReferenceTime;
+            }
+         }
+
+         for (unsigned int m = 0; m < duplicatePts.size(); m++)
+         {
+            if ( largestTime != duplicatePts.at(m)->timestamp )
+            {
+               duplicatePts.at(m)->timestamp = largestTime;
+            }  
+         }
+
+         overallReferenceTime +=5;
+      }
+   }
+
+   for (unsigned int p = 0; p < _plotdb.size(); p++)
+   {
+      std::list<DronePlot>::iterator it = getDBIterator(p);
+      it->checked = false;
+   }
+}
+
+
+void ReplServer::syncDroneTimeSteps(int nodeId){
+
+
+}
+
+
+bool ReplServer::startTimeCalcErrorCheck(int nodeId){
+   switch(nodeId)
+   {
+      case 1:
+         return node1StartTimeFlag;
+         break;
+
+      case 2:
+         return node2StartTimeFlag;
+         break;
+
+      default:
+         return node3StartTimeFlag;
+         break;
+   }   
+
+}
+
+void ReplServer::setStartTimeErrorCheckFlag(int nodeId){
+   switch(nodeId)
+   {
+      case 1:
+         node1StartTimeFlag = false;
+         break;
+
+      case 2:
+         node2StartTimeFlag = false;
+         break;
+
+      default:
+         node3StartTimeFlag = false;
+         break;
+   }
+}
+
 void ReplServer::dbTimeSync(){
    //std::cout << "######IN DB SYNC#######" << std::endl;
    _plotdb.sortByTime();
@@ -237,7 +402,7 @@ void ReplServer::dbTimeSync(){
    bool refTimeSet = false;
    if (startTimeWasSet || tempStartTimeSet){
       referenceTime = setStartTime;
-      refTimeSet = true;
+      refTimeSet = false;
    }
 
    for (unsigned int i = 0; i < _plotdb.size(); i++){
@@ -252,7 +417,7 @@ void ReplServer::dbTimeSync(){
          //std::cout << "Pt2 DID: " << it2->drone_id << " NID: "  << it2->node_id << " TS: " << it2->timestamp << " LAT: "  << it2->latitude << " LONG: "  << it2->longitude << std::endl;
          //unsigned int tDiff = it->timestamp - it2->timestamp;
 
-         if ((it->drone_id == it2->drone_id) )
+         if ((it->drone_id == it2->drone_id))
          {
             
             if (it->latitude == it2->latitude && it->longitude == it2->longitude)
@@ -411,6 +576,60 @@ void ReplServer::dbTimeSync(){
 void ReplServer::deleteDBduplicates(bool StartTimeFlag){
    _plotdb.sortByTime();
 
+   std::vector<int> duplicateIndex;
+
+   if (StartTimeFlag || (cycles > 99) ){
+      for (unsigned int i = 0; i < _plotdb.size(); i++)
+      {
+         std::vector<std::list<DronePlot>::iterator> duplicatePts;
+         std::list<DronePlot>::iterator it = getDBIterator(i);
+
+
+         if (!it->isFlagSet(DBFLAG_NEW))
+         {
+            
+            for (unsigned int j = i + 1; j < _plotdb.size(); j++)
+            {
+               std::list<DronePlot>::iterator it2 = getDBIterator(j);
+               
+               if(!it->isFlagSet(DBFLAG_NEW))
+               {
+                  if ((it->drone_id == it2->drone_id))
+                  {
+                     if (it->latitude == it2->latitude && it->longitude == it2->longitude)
+                     {
+                        int tDiff = abs(it->timestamp - it2->timestamp);
+                        if (tDiff < 7)
+                        {
+                           bool checkFound = checkIfAlreadyFound(duplicateIndex, j);
+                           if (!checkFound){
+                              duplicateIndex.push_back(j);
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+         }     
+      }
+
+      while (!duplicateIndex.empty())
+      {
+         std::list<DronePlot>::iterator it = getDBIterator(duplicateIndex.at(duplicateIndex.size()-1));
+         std::cout << "Deleting DID: " << it->drone_id << " NID: "  << it->node_id << " TS: " << it->timestamp << " LAT: "  << it->latitude << " LONG: "  << it->longitude << std::endl;
+         //std::cout << "deleting INDEX pts" << std::endl;
+         //std::cout << "size of vector : " << duplicateIndex.size() << std::endl;
+         //std::cout << "delteing (at) index: " << duplicateIndex.size() - 1 << std::endl;
+         //std::cout << "delteing deref: " << duplicateIndex.at(duplicateIndex.size()-1) << std::endl;
+         _plotdb.erase(duplicateIndex.at(duplicateIndex.size()-1));
+         
+         duplicateIndex.pop_back();
+      }
+   }
+   this->cycles++;
+   
+
+/*
    if (this->cycles > 100 || StartTimeFlag){
   //if (StartTimeFlag && (this->cycles > 100)){
       
@@ -452,6 +671,19 @@ void ReplServer::deleteDBduplicates(bool StartTimeFlag){
       }
    }
    this->cycles++;
+*/
+
+}
+
+bool ReplServer::checkIfAlreadyFound(std::vector<int> inputVector, int value){
+   for(auto v : inputVector){
+      if (v == value){
+         return true;
+      }
+   }
+
+   return false;
+
 }
 
 
@@ -588,7 +820,7 @@ void ReplServer::shutdown() {
    //dbTimeSync();
    //deleteDBduplicatesFinal();
 
-   std::cout << "Calc Start Time: " << this->setStartTime << std::endl;
+   std::cout << "Calc Start Time: " << this->masterStartTime << std::endl;
    std::cout << "MasterClock: " << masterClockNode << std::endl;
    std::cout << "offset 12: " << masterOffset12 << std::endl;
    std::cout << "offset 23: " << masterOffset23 << std::endl;

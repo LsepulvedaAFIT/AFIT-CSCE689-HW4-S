@@ -77,16 +77,16 @@ void AntennaSim::simulate() {
 
    //for Testing
    if (this->filenameH == "./data/SingleDroneN1.bin"){
-      std::cout << "manual offset: 0" << std::endl;
+      std::cout << "manual offset: 1" << std::endl;
       _time_offset = 0;
    }
    else if (this->filenameH == "./data/SingleDroneN2.bin"){
-      std::cout << "manual offset: 0" << std::endl;
-      _time_offset = -1;
+      std::cout << "manual offset: 3" << std::endl;
+      _time_offset = 3;
    }
    else if (this->filenameH == "./data/SingleDroneN3.bin"){
-      std::cout << "manual offset: 0" << std::endl;
-      _time_offset = 1;
+      std::cout << "manual offset: -3" << std::endl;
+      _time_offset = -3;
    }
 
    if (_verbosity >= 2) 
