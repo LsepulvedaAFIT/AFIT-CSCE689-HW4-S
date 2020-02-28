@@ -88,7 +88,7 @@ TCPConn::~TCPConn() {
  **********************************************************************************************/
 
 bool TCPConn::accept(SocketFD &server) {
-   std::cout << "In accept() " << std::endl;
+   //std::cout << "In accept() " << std::endl;
    // Accept the connection
    bool results = _connfd.acceptFD(server);
 
@@ -603,7 +603,7 @@ void TCPConn::connect(const char *ip_addr, unsigned short port) {
 
 // Same as above, but ip_addr and port are in network (big endian) format
 void TCPConn::connect(unsigned long ip_addr, unsigned short port) {
-   std::cout << "In connect() " << std::endl;
+   //std::cout << "In connect() " << std::endl;
    // Set the status to connecting
    _status = s_connecting;
 
@@ -889,10 +889,12 @@ void TCPConn::sendAuthenticationRespAndString() {
    std::vector<uint8_t> buf;
    std::vector<uint8_t> buf2;
 
-   //recieves the data and encrypts it
+   //recieves the data, wraps it, and encrypts it
    buf = this->recAuthString;
-   encryptData(buf);
    wrapCmd(buf, c_auth, c_endauth);
+   encryptData(buf);
+
+   //std::cout << "size of encrypt buf: " << buf.size() << std::endl;
       
    //Containt that stores the generated string to compare at a later time   
    authString.clear();
@@ -923,7 +925,7 @@ void TCPConn::sendAuthenticationRespAndString() {
       _server_log.writeLog(msg.str().c_str());
       disconnect();
    }
-   std::cout << "Size auth : "<< buf.size() << std::endl;
+   //std::cout << "Size auth : "<< buf.size() << std::endl;
 
    //buf2.assign(_svr_id.begin(), _svr_id.end());
    //wrapCmd(buf2, c_sid, c_endsid);
@@ -949,12 +951,13 @@ void TCPConn::waitForEncryptAuthReplyAndAuthString(){
 
 
       //transfers incoming into buffer to parse the encrypted message from the
-      //authentication string
-      encrypAuthStr = buf;
+      std::copy(buf.begin(), buf.begin() + 62, std::back_inserter(encrypAuthStr));
+      //decrypts data
+      decryptData(encrypAuthStr);
 
       //removes the encrypted authentication string
       if (!getCmdData(encrypAuthStr, c_auth, c_endauth)) {
-         std::cout << "TCP Connnection message: Error recieved data in invalid format" << std::endl;
+         std::cout << "TCP Connnection message: Error recieved data in invalid format EncrypteAuthStr" << std::endl;
          std::stringstream msg;
          msg << "Auth string from connecting client invalid format. Cannot authenticate.";
          _server_log.writeLog(msg.str().c_str());
@@ -964,10 +967,7 @@ void TCPConn::waitForEncryptAuthReplyAndAuthString(){
 
       //calculates the initial part of data that needs to be removed to get
       //authentication string before data is altered
-      int discardSize = encrypAuthStr.size() + 11;      
-
-      //decrypts data
-      decryptData(encrypAuthStr);
+      int discardSize = encrypAuthStr.size();       
 
       //compares recieved string to the string that was sent
       if (encrypAuthStr == this->authString){
@@ -1055,6 +1055,7 @@ void TCPConn::sendAuthenticationResp(){
 
    wrapCmd(buf, c_auth, c_endauth);
    encryptData(buf);
+
 
    bool sendResult = sendData(buf);
    if (!sendResult){

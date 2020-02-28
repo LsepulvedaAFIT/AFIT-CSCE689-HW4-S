@@ -115,7 +115,7 @@ void ReplServer::replicate() {
 
       usleep(1000);
    }
-   dbTimeSync();
+   dbTimeSync2();     
    //deleteDBduplicatesFinal();   
 }
 
